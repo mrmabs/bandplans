@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>VK Bandplans</title>
+</head>
+<script>
+function loadJSON(filename, callback) {   
+	var xobj = new XMLHttpRequest();
+	xobj.overrideMimeType("application/json");
+	xobj.open('GET', filename, true);
+	xobj.onreadystatechange = function () {
+		if (xobj.readyState == 4 && xobj.status == "200") {
+			// Required use of an anonymous callback as .open will NOT return a value but simply returns undefined in asynchronous mode
+			callback(xobj.responseText);
+		}
+	};
+	xobj.send(null);  
+}
+
+var bandplandata;
+
+var canvasWidth = 1000.0;
+var canvasHeight = 100; // needs to be implemented
+
+var modeColours = {
+	"cw": "red",
+	"ssb": "green",
+	"am": "lightgreen",
+	"digital": "blue",
+	"fm": "yellow",
+	"sat": "grey",
+	"all": "lightgrey",
+	"jt": "orange",
+	"wspr": "purple",
+	"psk31": "lightblue",
+	"beacons": "aqua",
+	"sstv": "indigo",
+	"repeaters": "gold",
+	"qrss": "fuchsia",
+	"default": "black"
+};
+
+// Definitely can be simplified, code is ugly
+function updateLegend() {
+	var text = "<div>Legend:</div><br /><div style='text-indent:3em;'>";
+	text = text + '<div>CW: <span style="color:' + modeColours["cw"] + ';">' + modeColours["cw"] + '</span></div>';
+	text = text + '<div>Voice (SSB): <span style="color:' + modeColours["ssb"] + ';">' + modeColours["ssb"] + '</span></div>';
+	text = text + '<div>Voice (FM): <span style="color:' + modeColours["fm"] + ';background-color: black;">' + modeColours["fm"] + '</span></div>';
+	text = text + '<div>AM: <span style="color:' + modeColours["am"] + ';">' + modeColours["am"] + '</span></div>';
+	text = text + '<div>Digital: <span style="color:' + modeColours["digital"] + ';">' + modeColours["digital"] + '</span></div>';
+	text = text + '<div>Satellite: <span style="color:' + modeColours["sat"] + ';">' + modeColours["sat"] + '</span></div>';
+	text = text + '<div>Any Mode: <span style="color:' + modeColours["all"] + ';background-color: black;">' + modeColours["all"] + '</span></div>';
+	text = text + '<div>WSPR: <span style="color:' + modeColours["wspr"] + ';">' + modeColours["wspr"] + '</span></div>';
+	text = text + '<div>JT: <span style="color:' + modeColours["jt"] + ';">' + modeColours["jt"] + '</span></div>';
+	text = text + '<div>QRSS: <span style="color:' + modeColours["qrss"] + ';">' + modeColours["qrss"] + '</span></div>';
+	text = text + '<div>PSK31: <span style="color:' + modeColours["psk31"] + ';background-color: black;">' + modeColours["psk31"] + '</span></div>';
+	text = text + '<div>Beacons: <span style="color:' + modeColours["beacons"] + ';background-color: black;">' + modeColours["beacons"] + '</span></div>';
+	text = text + '<div>SSTV: <span style="color:' + modeColours["sstv"] + ';">' + modeColours["sstv"] + '</span></div>';
+	text = text + '<div>Repeaters: <span style="color:' + modeColours["repeaters"] + ';background-color: black;">' + modeColours["repeaters"] + '</span></div>';
+	text = text + "</div>";
+	return text;
+}
+
+// Probably can be simplified
+function drawBand(bandData, canvas) {
+	var ctx = canvas.getContext("2d");
+	var per = canvasWidth / (bandData["range"][1] - bandData["range"][0]);
+	var bandStart = bandData["range"][0];
+	var start = parseFloat(bandData["range"][0]);
+	var end = parseFloat(bandData["range"][1]);
+	var i;
+
+	ctx.fillText(start, 0, 95);
+	ctx.fillText(end, canvasWidth - ctx.measureText(end).width, 95);
+
+	for (i = 0; i < bandData["sections"].length; i++) {
+		if (bandData["sections"][i][0] in modeColours) {
+			ctx.fillStyle = modeColours[bandData["sections"][i][0]];
+		} else {
+			ctx.fillStyle = modeColours["default"];
+		}
+		var start = (bandData["sections"][i][1] - bandStart) * per;
+		var length = ((bandData["sections"][i][2] - bandStart) * per) - start;
+		if (length < 5) {
+			length = 5;
+			start = start - 2;
+		}
+		ctx.fillRect(start, 0, length, 75);
+
+		if (i > 0) {
+			var text = parseFloat(bandData["sections"][i][1]);
+			ctx.fillStyle = "black";
+			ctx.fillText(text, (bandData["sections"][i][1] - bandStart) * per - (ctx.measureText(text).width / 2), 95);
+		}
+	}
+	if ("modes" in bandData) {
+		for (i in bandData["modes"]) {
+			if (bandData["modes"][i][0] in modeColours) {
+				ctx.fillStyle = modeColours[bandData["modes"][i][0]];
+			} else {
+				ctx.fillStyle = modeColours["default"];
+			}
+			var start = (bandData["modes"][i][1] - bandStart) * per;
+			var length = ((bandData["modes"][i][2] - bandStart) * per) - start;
+			if (length < 5) {
+				length = 5;
+				start = start - 2;
+			}
+			ctx.fillRect(start, 25, length, 50);
+		}
+	}
+}
+
+// This is here is in the future we could pick and choose what bands we want displayed
+function getBands() {
+	var bands = [];
+	for (var key in bandplandata) {
+		bands.push(key);
+	}
+	return bands;
+}
+
+function updateBands(element, bands) {
+	element.innerHTML = "<div>Bands:</div><br />"
+	bands.forEach(function(key) {
+		element.innerHTML = element.innerHTML + "<div>" + bandplandata[key]["name"] + "</div>";
+		element.innerHTML = element.innerHTML + '<canvas id="' + key + '" width="' + parseInt(canvasWidth) + '" height="100" style="border:1px solid #000000;"></canvas><br />';
+	});
+	// Must serialise properly, have to output the HTML before we can render the graphics
+	bands.forEach(function(key) {
+		drawBand(bandplandata[key], document.getElementById(key));
+	});
+}
+</script>
+<body>
+
+<h1>Australian Band Plans</h1>
+<p>A demo.</p>
+
+<div> Choose a Bandplan: 
+<select id="file" onchange="load(document.getElementById('file').value);">
+	<option value="vk.json">VK</option>
+	<option value="r3.json">Region 3</option>
+</select>
+</div><br />
+
+<div id="legend">Legend:</div><br />
+
+<div id="bands">Bands:</div><br />
+
+<div id="debug">Debug:</div><br />
+
+<script>
+// Generate the legend and write it to the html page
+document.getElementById("legend").innerHTML = updateLegend();
+
+// Generate the bandplans
+// json data needs to be loaded asynchronously 
+function load(filename) {
+	loadJSON(filename, function(response) {
+		bandplandata = JSON.parse(response);
+		//document.getElementById("debug").innerHTML = '"' + getBands() + '"';
+		updateBands(document.getElementById("bands"), getBands());
+	});
+}
+
+load(document.getElementById('file').value);
+
+</script>
+
+
+</body>
+</html>
