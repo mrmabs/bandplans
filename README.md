@@ -6,7 +6,7 @@ Not much here so far, this is just some JSON Amateur Radio Bandplan data in a fo
 What it doesn't do: 
 * display primary / secondary allocations
 * display licence types
-* may or may no display band gaps properly
+* frequency at the end of band gaps not displayed, see 80m in vk.json for a "workaround"
 
 This project is GPL3
 
